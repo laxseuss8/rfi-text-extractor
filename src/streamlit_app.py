@@ -127,7 +127,7 @@ if uploaded_files:
                 else:
                     output_folder, result_csv = run_pipeline(Path(temp_dir), all_images, base_name)
 
-                    zip_path = Path(temp_dir) / f"{base_name}_black_roi.zip"
+                    zip_path = Path(temp_dir) / f"{base_name}_output.zip"
                     zip_folder(output_folder, zip_path)
 
                     st.success("✅ Processing complete!")
