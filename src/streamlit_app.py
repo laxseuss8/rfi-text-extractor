@@ -10,12 +10,12 @@ from ocr_process.save_to_csv import save_side_by_side_csv
 from pathlib import Path
 import os, shutil
 import cv2
-
+import zipfile
+import py7zr
 from pyunpack import Archive
 import tempfile
 
 # === Utilities ===
-
 def save_uploaded_files(uploaded_files, temp_dir="uploaded_data"):
     temp_path = Path(temp_dir)
     temp_path.mkdir(exist_ok=True)
@@ -33,11 +33,26 @@ def extract_archives_if_needed(file_paths, extract_dir):
     extracted_folders = []
     for file_path in file_paths:
         suffix = file_path.suffix.lower()
-        if suffix in [".rar", ".7z", ".zip"]:
-            extracted_folder = extract_dir / file_path.stem
-            extracted_folder.mkdir(exist_ok=True)
-            Archive(str(file_path)).extractall(str(extracted_folder))
-            extracted_folders.append(extracted_folder)
+        extracted_folder = extract_dir / file_path.stem
+        extracted_folder.mkdir(exist_ok=True)
+
+        try:
+            if suffix == ".zip":
+                with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                    zip_ref.extractall(extracted_folder)
+                extracted_folders.append(extracted_folder)
+
+            elif suffix == ".7z":
+                with py7zr.SevenZipFile(file_path, mode='r') as archive:
+                    archive.extractall(path=extracted_folder)
+                extracted_folders.append(extracted_folder)
+
+            elif suffix == ".rar":
+                # Skip or warn — rar is not supported without unrar installed
+                print(f"Skipping .rar archive: {file_path} (no 'unrar' CLI installed)")
+
+        except Exception as e:
+            print(f"Failed to extract {file_path.name}: {e}")
     return extracted_folders
 
 def collect_image_files_recursive(root_folder: Path, image_extensions=('.png', '.jpg', '.jpeg', '.tif', '.tiff')):
