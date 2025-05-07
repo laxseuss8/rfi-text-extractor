@@ -135,10 +135,10 @@ if uploaded_files:
                     show_image_gallery(output_folder)
 
                     with open(result_csv, "rb") as f:
-                        st.download_button("📥 Download OCR CSV", f, file_name=result_csv.name)
+                        st.download_button("📥 Download Extracted Text to CSV", f, file_name=result_csv.name)
 
                     with open(zip_path, "rb") as zip_file:
-                        st.download_button("🖼️ Download Processed Images (Black ROI)", zip_file, file_name=zip_path.name)
+                        st.download_button("🖼️ Download Processed Images", zip_file, file_name=zip_path.name)
 
             except Exception as e:
                 st.error(f"❌ Error: {e}")
