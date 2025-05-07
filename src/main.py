@@ -11,31 +11,37 @@ from pathlib import Path
 import os
 import cv2
 
-def collect_image_files(input_folder: Path, exclude_dir_name="_output") -> list[Path]:
-    image_extensions = ('.png', '.jpg', '.jpeg', '.tif', '.tiff')
-    image_files = []
+# === Utility for handling uploaded files ===
+def save_uploaded_files(uploaded_files, temp_dir="uploaded_images"):
+    temp_path = Path(temp_dir)
+    temp_path.mkdir(exist_ok=True)
+    saved_paths = []
 
-    for root, dirs, files in os.walk(input_folder):
-        dirs[:] = [d for d in dirs if exclude_dir_name not in d]
-        for file in files:
-            if file.lower().endswith(image_extensions):
-                image_files.append(Path(root) / file)
+    for uploaded_file in uploaded_files:
+        file_path = temp_path / uploaded_file.name
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        saved_paths.append(file_path)
 
-    return image_files
+    return temp_path, saved_paths
 
-def run_pipeline(input_folder: Path):
-    input_name = input_folder.name
-    output_folder = input_folder / f"{input_name}_output"
+# === Modified pipeline to work with uploaded images ===
+def run_pipeline_from_uploads(image_folder: Path, image_files: list[Path]):
+    input_name = image_folder.name
+    output_folder = image_folder / f"{input_name}_output"
     csv_path = output_folder / f"{input_name}.csv"
 
-    original_stems = process_images(input_folder, black_roi, output_folder_name=output_folder.name)
+    # ROI blackening and saving original stems
+    original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name)
     save_dictionary_to_csv(original_stems, input_name, csv_path)
 
-    image_files = collect_image_files(input_folder)
     ocr_results = {}
 
     for image_path in image_files:
         image = cv2.imread(str(image_path))
+        if image is None:
+            continue  # skip unreadable files
+
         roi_x = process_roi_x(image)
         roi_y = process_roi_y(image)
 
@@ -48,6 +54,7 @@ def run_pipeline(input_folder: Path):
             "Y": cleaned_text_y,
         }
 
+    output_folder.mkdir(exist_ok=True)
     output_csv_path = output_folder / f"{input_name}_ocr.csv"
     save_side_by_side_csv(ocr_results, output_csv_path)
 
@@ -56,20 +63,20 @@ def run_pipeline(input_folder: Path):
 # === Streamlit UI ===
 st.set_page_config(page_title="OCR Text Extractor", page_icon="🧠", layout="centered")
 st.title("🧠 OCR Text Extraction Pipeline")
-st.write("Select a local folder containing images to run the full ROI + OCR pipeline.")
+st.write("Upload image files to run the full ROI + OCR pipeline.")
 
-folder_path = st.text_input("📁 Enter full directory path:", "")
+uploaded_files = st.file_uploader("📁 Upload image files", type=["png", "jpg", "jpeg", "tif", "tiff"], accept_multiple_files=True)
 
-if folder_path:
-    path_obj = Path(folder_path)
-    if not path_obj.exists() or not path_obj.is_dir():
-        st.error("Invalid path or not a directory.")
-    else:
-        st.success(f"Selected folder: {path_obj.name}")
-        if st.button("🚀 Run OCR Pipeline"):
-            with st.spinner("Processing..."):
-                output_folder, result_csv = run_pipeline(path_obj)
-            st.success("✅ Processing complete!")
+if uploaded_files:
+    st.success(f"Uploaded {len(uploaded_files)} image(s).")
+    if st.button("🚀 Run OCR Pipeline"):
+        with st.spinner("Processing..."):
+            try:
+                image_folder, image_paths = save_uploaded_files(uploaded_files)
+                output_folder, result_csv = run_pipeline_from_uploads(image_folder, image_paths)
+                st.success("✅ Processing complete!")
 
-            with open(result_csv, "rb") as f:
-                st.download_button("📥 Download OCR CSV", f, file_name=result_csv.name)
+                with open(result_csv, "rb") as f:
+                    st.download_button("📥 Download OCR CSV", f, file_name=result_csv.name)
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
