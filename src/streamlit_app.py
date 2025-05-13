@@ -98,7 +98,6 @@ def collect_image_files_recursive(root_folder: Path, image_extensions=('.png', '
     """
     return [p for p in root_folder.rglob("*") if p.suffix.lower() in image_extensions and p.is_file()]
 
-
 def zip_folder(folder_path: Path, zip_name: Path):
     """
     Compress a folder into a ZIP archive.
@@ -116,9 +115,9 @@ def zip_folder(folder_path: Path, zip_name: Path):
 def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     """
     Execute the full OCR pipeline: 
-    1. ROI blackening,
-    2. OCR extraction from the output of ROI blackening,
-    3. Cleaning of extracted text,
+    1. OCR extraction from images
+    2. ROI blackening with OCR results in filenames
+    3. Cleaning of extracted text
     4. Save results to CSV outputs.
 
     Args:
@@ -133,12 +132,7 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     # Prepare output folder and temporary CSV path
     output_folder = image_folder / f"{base_name}_output"
 
-
-    # Apply black ROI filter and save stems dictionary
-    original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name)
-
-
-    # OCR processing on each image
+    # First perform OCR to get the text values
     ocr_results = {}
     for image_path in image_files:
         image = cv2.imread(str(image_path))
@@ -153,29 +147,15 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
         cleaned_text_x, cleaned_text_y = clean_text(text_x, text_y)
         ocr_results[image_path.stem] = {"X": cleaned_text_x, "Y": cleaned_text_y}
 
+    # Apply black ROI filter with OCR results for filenames
+    original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name, ocr_results=ocr_results)
+
     # Ensure output directory exists and save final OCR CSV
     output_folder.mkdir(exist_ok=True)
     output_csv_path = output_folder / f"{base_name}.csv"
     save_side_by_side_csv(ocr_results, output_csv_path)
 
     return output_folder, output_csv_path
-
-
-def show_image_gallery(folder: Path):
-    """
-    Display processed images in a gallery layout within Streamlit.
-
-    Args:
-        folder (Path): Directory containing images to preview.
-    """
-    image_files = sorted(folder.glob("*"))
-    images = [Image.open(img) for img in image_files if img.suffix.lower() in [".png", ".jpg", ".jpeg", ".tif", ".tiff"]]
-    if images:
-        st.markdown("### 🖼️ Preview of Processed Images:")
-        cols = st.columns(3)
-        for i, img in enumerate(images):
-            with cols[i % 3]:
-                st.image(img, use_column_width=True, caption=image_files[i].name)
 
 # === Streamlit UI ===
 # Page configuration and title
@@ -221,8 +201,7 @@ if uploaded_files:
                         # zip images
                         zip_path = temp_dir / f"{base}_output.zip"
                         zip_folder(out_folder, zip_path)
-                        # show gallery & downloads
-                        show_image_gallery(out_folder)
+    
                         with open(out_csv, "rb") as f:
                             st.download_button(f"📥 Download `{base}` OCR CSV", f, file_name=out_csv.name)
                         with open(zip_path, "rb") as f:
