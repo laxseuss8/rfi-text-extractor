@@ -25,6 +25,9 @@ def process_images(input_folder: Path, process_fn: Callable, output_folder_name=
     output_folder = input_folder / output_folder_name
     output_folder.mkdir(parents=True, exist_ok=True)
 
+    print("\nDEBUG - process_images received OCR results:")
+    print(ocr_results)
+
     original_stems = []
 
     for root, dirs, files in os.walk(input_folder):
@@ -57,12 +60,20 @@ def process_images(input_folder: Path, process_fn: Callable, output_folder_name=
                 ocr_text = ""
                 if ocr_results and stem in ocr_results:
                     x_vals = ocr_results[stem].get('X', [])
+                    print(f"\nDEBUG - Processing {stem}:")
+                    print(f"  Found X values: {x_vals}")
                     if len(x_vals) >= 2:  # Check if we have at least 2 X values
                         ocr_text = f"{x_vals[0]}_{x_vals[1]}_"
+                        print(f"  Using OCR text: {ocr_text}")
+                    else:
+                        print(f"  Not enough X values (need 2, got {len(x_vals)})")
+                else:
+                    print(f"\nDEBUG - No OCR results found for {stem}")
                 
                 # Create new filename with deeper folder structure and OCR text
                 processed_name = f"{ocr_text}{folder_prefix}{stem}{suffix}"
                 processed_path = target_folder / processed_name
+                print(f"  Final filename: {processed_name}")
 
                 with Image.open(input_path) as img:
                     array = np.array(img)
