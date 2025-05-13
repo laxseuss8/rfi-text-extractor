@@ -13,56 +13,33 @@ def ensure_list(val):
 def save_side_by_side_csv(data_dict, output_filename):
     """
     Save OCR data in side-by-side comparison format:
-    - One section for 'V' orientation, one for 'H' orientation.
-    - Each cell contains individual values from 'X' and 'Y' lists.
+    - One column for the image stem,
+    - One column per X value,
+    - One column per Y value,
+    - Blank line separating each image.
     """
+    # make sure output directory exists
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
 
-    # Group into base names: remove last 2 characters (' V' or ' H')
-    paired_data = {}
-    for image_stem, values in data_dict.items():
-        if not (image_stem.endswith(" V") or image_stem.endswith(" H")):
-            continue
-
-        base = image_stem[:-2]
-        orientation = image_stem[-1]  # 'V' or 'H'
-
-        if base not in paired_data:
-            paired_data[base] = {}
-
-        paired_data[base][orientation] = {
-            'X': ensure_list(values.get('X')),
-            'Y': ensure_list(values.get('Y'))
-        }
-
-    # Write to CSV
     with open(output_filename, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
 
-        for base, pair in paired_data.items():
-            v_data = pair.get('V', {'X': [], 'Y': []})
-            h_data = pair.get('H', {'X': [], 'Y': []})
+        # Write header
+        writer.writerow(["Image Stem", "Ref X", "Ref Y"])
 
-            # Pad both lists to max length for symmetry
-            max_len_x = max(len(v_data['X']), len(h_data['X']))
-            max_len_y = max(len(v_data['Y']), len(h_data['Y']))
+        # For each image, write all X/Y pairs
+        for stem, values in data_dict.items():
+            x_list = ensure_list(values.get('X'))
+            y_list = ensure_list(values.get('Y'))
 
-            v_data['X'] += [""] * (max_len_x - len(v_data['X']))
-            h_data['X'] += [""] * (max_len_x - len(h_data['X']))
-            v_data['Y'] += [""] * (max_len_y - len(v_data['Y']))
-            h_data['Y'] += [""] * (max_len_y - len(h_data['Y']))
+            # pad so both lists are equal length
+            max_len = max(len(x_list), len(y_list))
+            x_list += [""] * (max_len - len(x_list))
+            y_list += [""] * (max_len - len(y_list))
 
-            # Header row with image stems
-            row1 = [f"{base} V"] + [""] * 7 + [f"{base} H"]
-            writer.writerow(row1)
+            # write each pair on its own row
+            for i in range(max_len):
+                writer.writerow([stem, x_list[i], y_list[i]])
 
-            # Ref X row
-            row2 = ["Ref X:"] + v_data['X'] + [""] * (7 - len(v_data['X'])) + ["Ref X:"] + h_data['X']
-            writer.writerow(row2)
-
-            # Ref Y row
-            row3 = ["Ref Y:"] + v_data['Y'] + [""] * (7 - len(v_data['Y'])) + ["Ref Y:"] + h_data['Y']
-            writer.writerow(row3)
-
-            # Spacer
+            # spacer row between images
             writer.writerow([])
