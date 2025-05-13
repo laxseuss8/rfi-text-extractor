@@ -131,9 +131,15 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     """
     # Prepare output folder and temporary CSV path
     output_folder = image_folder / f"{base_name}_output"
+    intermediate_csv = output_folder / f"{base_name}.csv"
 
     # Apply black ROI filter and save stems dictionary
     original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name)
+    save_dictionary_to_csv(original_stems, base_name, intermediate_csv)
+
+    # Remove intermediate CSV after Black ROI filter
+    if intermediate_csv.exists():
+        os.remove(intermediate_csv)
 
     # OCR processing on each image
     ocr_results = {}
@@ -157,46 +163,73 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
 
     return output_folder, output_csv_path
 
+
+def show_image_gallery(folder: Path):
+    """
+    Display processed images in a gallery layout within Streamlit.
+
+    Args:
+        folder (Path): Directory containing images to preview.
+    """
+    image_files = sorted(folder.glob("*"))
+    images = [Image.open(img) for img in image_files if img.suffix.lower() in [".png", ".jpg", ".jpeg", ".tif", ".tiff"]]
+    if images:
+        st.markdown("### 🖼️ Preview of Processed Images:")
+        cols = st.columns(3)
+        for i, img in enumerate(images):
+            with cols[i % 3]:
+                st.image(img, use_column_width=True, caption=image_files[i].name)
+
 # === Streamlit UI ===
+# Page configuration and title
 st.set_page_config(page_title="OCR Text Extractor", page_icon="🧠", layout="centered")
 st.title("🧠 OCR Text Extraction Pipeline")
 
+# File uploader for images and archives
 uploaded_files = st.file_uploader(
     "📁 Upload images or archives (.png, .jpg, .rar, .7z, .zip)",
     type=["png", "jpg", "jpeg", "tif", "tiff", "rar", "7z", "zip"],
     accept_multiple_files=True
 )
 
+# Main processing trigger
 if uploaded_files:
     st.success(f"Uploaded {len(uploaded_files)} file(s).")
-    if st.button("🚀 Run OCR on Uploaded Files"):
+    if st.button("🚀 Run OCR on Uploaded Files / Archives"):
         with st.spinner("Processing..."):
             try:
-                temp_dir = Path(tempfile.mkdtemp())
-                image_folder, file_paths = save_uploaded_files(uploaded_files, temp_dir=str(temp_dir))
-                extracted_dirs = extract_archives_if_needed(file_paths, temp_dir)
+                # Create temporary working directory
+                temp_dir = tempfile.mkdtemp()
+                image_folder, file_paths = save_uploaded_files(uploaded_files, temp_dir=temp_dir)
+                # Extract archives if present
+                extracted_dirs = extract_archives_if_needed(file_paths, Path(temp_dir))
 
-                # collect all images into a single list
+                # Determine base filename for outputs
+                archive_file = next((f for f in file_paths if f.suffix.lower() in [".zip", ".rar", ".7z"]), None)
+                base_name = archive_file.stem if archive_file else image_folder.name
+
+                # Collect all image files from uploads and extractions
                 all_images = [f for f in file_paths if f.suffix.lower() in [".png", ".jpg", ".jpeg", ".tif", ".tiff"]]
-                for d in extracted_dirs:
-                    all_images += collect_image_files_recursive(d)
+                for folder in extracted_dirs:
+                    all_images += collect_image_files_recursive(folder)
 
                 if not all_images:
                     st.warning("No valid image files found.")
                 else:
-                    # process all images in one batch
-                    base_name = "all_extracted"
-                    out_folder, out_csv = run_pipeline(temp_dir, all_images, base_name)
+                    # Run processing pipeline
+                    output_folder, result_csv = run_pipeline(Path(temp_dir), all_images, base_name)
 
-                    # create ZIP of processed images
-                    zip_path = temp_dir / f"{base_name}_output.zip"
-                    zip_folder(out_folder, zip_path)
+                    # Create ZIP of processed images
+                    zip_path = Path(temp_dir) / f"{base_name}_output.zip"
+                    zip_folder(output_folder, zip_path)
 
                     st.success("✅ Processing complete!")
-                    with open(out_csv, "rb") as f:
-                        st.download_button("📥 Download Extracted Text CSV", f, file_name=out_csv.name)
-                    with open(zip_path, "rb") as f:
-                        st.download_button("🖼️ Download Processed Images ZIP", f, file_name=zip_path.name)
+
+                    # Show gallery and provide downloads
+                    show_image_gallery(output_folder)
+
+                    with open(zip_path, "rb") as zip_file:
+                        st.download_button("🖼️ Download Processed Images", zip_file, file_name=zip_path.name)
 
             except Exception as e:
                 st.error(f"❌ Error: {e}")
