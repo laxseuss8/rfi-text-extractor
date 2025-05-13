@@ -112,62 +112,64 @@ def zip_folder(folder_path: Path, zip_name: Path):
     shutil.make_archive(str(zip_name.with_suffix('')), 'zip', str(folder_path))
     return zip_name
 
+# New: rename utility using Ref-X values
+def rename_with_refx(output_folder: Path, ocr_results: dict, base_name: str):
+    """
+    Rename each file in output_folder whose stem matches a key in ocr_results,
+    using the first two 'X' entries and the base_name.
+    """
+    for stem, texts in ocr_results.items():
+        # grab first two cleaned X entries
+        ref_list = texts.get('X', [])
+        ref1 = ref_list[0] if len(ref_list) > 0 else ""
+        ref2 = ref_list[1] if len(ref_list) > 1 else ""
+
+        # find any files matching this stem
+        for img_path in output_folder.glob(f"{stem}.*"):
+            suffix = img_path.suffix  # preserve extension
+            new_name = f"{ref1}_{ref2}_{base_name}{suffix}"
+            img_path.rename(output_folder / new_name)
+
+
 def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     """
-    Execute the full OCR pipeline: 
+    Execute the full OCR pipeline:
     1. ROI blackening,
-    2. OCR extraction from the output of ROI blackening,
+    2. OCR extraction,
     3. Cleaning of extracted text,
     4. Save results to CSV outputs,
-    5. Flatten any nested directories under output_folder.
-
-    Args:
-        image_folder (Path): Working directory for image processing.
-        image_files (list[Path]): List of image Paths to process.
-        base_name (str): Base filename for output CSVs and folders.
-
-    Returns:
-        Path: Output folder containing processed images and files.
-        Path: CSV file path with cleaned OCR results.
+    5. Rename images by Ref-X values.
     """
-    # 1) Prepare output folder path
+    # Prepare output folder
     output_folder = image_folder / f"{base_name}_output"
+    intermediate_csv = output_folder / f"{base_name}.csv"
 
-    # 2) Apply black ROI filter (creates output_folder/<orig structure>)
-    original_stems = process_images(
-        image_folder,
-        black_roi,
-        output_folder_name=output_folder.name
-    )
+    original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name)
 
-    # 3) OCR processing
+    if intermediate_csv.exists():
+        os.remove(intermediate_csv)
+
+    # OCR processing
     ocr_results = {}
     for image_path in image_files:
-        img = cv2.imread(str(image_path))
-        if img is None:
+        image = cv2.imread(str(image_path))
+        if image is None:
             continue
-        roi_x = process_roi_x(img)
-        roi_y = process_roi_y(img)
+        roi_x = process_roi_x(image)
+        roi_y = process_roi_y(image)
         text_x, text_y = extract_from_image(roi_x, roi_y)
-        cleaned_x, cleaned_y = clean_text(text_x, text_y)
-        ocr_results[image_path.stem] = {"X": cleaned_x, "Y": cleaned_y}
+        cleaned_text_x, cleaned_text_y = clean_text(text_x, text_y)
+        ocr_results[image_path.stem] = {"X": cleaned_text_x, "Y": cleaned_text_y}
 
-    # 4) Ensure output folder exists
+    # Save CSV
     output_folder.mkdir(exist_ok=True)
+    output_csv_path = output_folder / f"{base_name}.csv"
+    save_side_by_side_csv(ocr_results, output_csv_path)
 
-    # 5) Flatten any nested directories
-    for sub in list(output_folder.iterdir()):
-        if sub.is_dir():
-            for file in sub.rglob("*"):
-                if file.is_file():
-                    shutil.move(str(file), str(output_folder / file.name))
-            sub.rmdir()
+    # Rename images based on Ref-X values
+    rename_with_refx(output_folder, ocr_results, base_name)
 
-    # 6) Save the consolidated CSV
-    output_csv = output_folder / f"{base_name}.csv"
-    save_side_by_side_csv(ocr_results, output_csv)
-
-    return output_folder, output_csv
+    return output_folder, output_csv_path
 
 
 def show_image_gallery(folder: Path):
