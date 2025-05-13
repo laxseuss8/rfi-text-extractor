@@ -132,10 +132,8 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     # Prepare output folder and temporary CSV path
     output_folder = image_folder / f"{base_name}_output"
 
-
     # Apply black ROI filter and save stems dictionary
     original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name)
-
 
     # OCR processing on each image
     ocr_results = {}
@@ -160,11 +158,9 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     return output_folder, output_csv_path
 
 # === Streamlit UI ===
-# Page configuration and title
 st.set_page_config(page_title="OCR Text Extractor", page_icon="🧠", layout="centered")
 st.title("🧠 OCR Text Extraction Pipeline")
 
-# File uploader for images and archives
 uploaded_files = st.file_uploader(
     "📁 Upload images or archives (.png, .jpg, .rar, .7z, .zip)",
     type=["png", "jpg", "jpeg", "tif", "tiff", "rar", "7z", "zip"],
@@ -177,10 +173,9 @@ if uploaded_files:
         with st.spinner("Processing..."):
             try:
                 temp_dir = Path(tempfile.mkdtemp())
-                # save uploads
                 image_folder, file_paths = save_uploaded_files(uploaded_files, temp_dir=str(temp_dir))
-                # extract archives
                 extracted_dirs = extract_archives_if_needed(file_paths, temp_dir)
+
                 # collect all images
                 all_images = [f for f in file_paths if f.suffix.lower() in [".png", ".jpg", ".jpeg", ".tif", ".tiff"]]
                 for d in extracted_dirs:
@@ -189,25 +184,24 @@ if uploaded_files:
                 if not all_images:
                     st.warning("No valid image files found.")
                 else:
-                    # group files by base_name (handles multiple archives/images)
-                    groups: dict[str, list[Path]] = {}
+                    from collections import defaultdict
+                    folder_groups = defaultdict(list)
                     for img in all_images:
-                        # use stem up to first underscore for grouping, or full stem
-                        base = img.stem.rsplit('_', 1)[0]
-                        groups.setdefault(base, []).append(img)
+                        # group by parent directory name
+                        folder_groups[img.parent.name].append(img)
 
-                    # process each group separately
-                    for base, imgs in groups.items():
-                        st.markdown(f"### Results for `{base}`")
-                        out_folder, out_csv = run_pipeline(temp_dir, imgs, base)
-                        # zip images
-                        zip_path = temp_dir / f"{base}_output.zip"
+                    # process each folder as its own batch
+                    for folder_name, imgs in folder_groups.items():
+                        st.markdown(f"### Results for `{folder_name}`")
+                        out_folder, out_csv = run_pipeline(temp_dir, imgs, folder_name)
+
+                        zip_path = temp_dir / f"{folder_name}_output.zip"
                         zip_folder(out_folder, zip_path)
-    
+                        
                         with open(out_csv, "rb") as f:
-                            st.download_button(f"📥 Download `{base}` OCR CSV", f, file_name=out_csv.name)
+                            st.download_button(f"📥 Download `{folder_name}` CSV", f, file_name=out_csv.name)
                         with open(zip_path, "rb") as f:
-                            st.download_button(f"🖼️ Download `{base}` Images ZIP", f, file_name=zip_path.name)
+                            st.download_button(f"🖼️ Download `{folder_name}` ZIP", f, file_name=zip_path.name)
 
             except Exception as e:
                 st.error(f"❌ Error: {e}")
