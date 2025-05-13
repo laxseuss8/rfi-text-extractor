@@ -146,12 +146,6 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
         # Clean extracted text
         cleaned_text_x, cleaned_text_y = clean_text(text_x, text_y)
         ocr_results[image_path.stem] = {"X": cleaned_text_x, "Y": cleaned_text_y}
-        print(f"DEBUG - OCR Results for {image_path.stem}:")
-        print(f"  X values: {cleaned_text_x}")
-        print(f"  Y values: {cleaned_text_y}")
-
-    print("\nDEBUG - All OCR Results:")
-    print(ocr_results)
 
     # Apply black ROI filter with OCR results for filenames
     original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name, ocr_results=ocr_results)
