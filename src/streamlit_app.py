@@ -115,9 +115,9 @@ def zip_folder(folder_path: Path, zip_name: Path):
 def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     """
     Execute the full OCR pipeline: 
-    1. OCR extraction from images
-    2. ROI blackening with OCR results in filenames
-    3. Cleaning of extracted text
+    1. ROI blackening,
+    2. OCR extraction from the output of ROI blackening,
+    3. Cleaning of extracted text,
     4. Save results to CSV outputs.
 
     Args:
@@ -132,7 +132,12 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     # Prepare output folder and temporary CSV path
     output_folder = image_folder / f"{base_name}_output"
 
-    # First perform OCR to get the text values
+
+    # Apply black ROI filter and save stems dictionary
+    original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name)
+
+
+    # OCR processing on each image
     ocr_results = {}
     for image_path in image_files:
         image = cv2.imread(str(image_path))
@@ -146,9 +151,6 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
         # Clean extracted text
         cleaned_text_x, cleaned_text_y = clean_text(text_x, text_y)
         ocr_results[image_path.stem] = {"X": cleaned_text_x, "Y": cleaned_text_y}
-
-    # Apply black ROI filter with OCR results for filenames
-    original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name, ocr_results=ocr_results)
 
     # Ensure output directory exists and save final OCR CSV
     output_folder.mkdir(exist_ok=True)

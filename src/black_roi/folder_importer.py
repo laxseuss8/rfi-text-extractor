@@ -7,7 +7,7 @@ import pandas as pd
 from PIL import Image
 
 
-def process_images(input_folder: Path, process_fn: Callable, output_folder_name="output", ocr_results=None) -> list[str]:
+def process_images(input_folder: Path, process_fn: Callable, output_folder_name="output") -> list[str]:
     """
     Process images in a folder with the given function and save results.
 
@@ -15,7 +15,6 @@ def process_images(input_folder: Path, process_fn: Callable, output_folder_name=
         input_folder (Path): Directory to process.
         process_fn (Callable): Image processing function.
         output_folder_name (str): Output folder name.
-        ocr_results (dict, optional): Dictionary mapping image stems to OCR results.
 
     Returns:
         list[str]: List of original image stem names.
@@ -36,17 +35,7 @@ def process_images(input_folder: Path, process_fn: Callable, output_folder_name=
                 relative_path = input_path.relative_to(input_folder)
 
                 stem, suffix = relative_path.stem, relative_path.suffix
-                
-                # Get OCR results for this image if available
-                ocr_text = ""
-                if ocr_results and stem in ocr_results:
-                    x_vals = ocr_results[stem].get('X', [])
-                    y_vals = ocr_results[stem].get('Y', [])
-                    if x_vals and y_vals:
-                        ocr_text = f"{x_vals[0]}_{y_vals[0]}_"
-                
-                # Create new filename with OCR text
-                processed_name = f"{ocr_text}{stem}{suffix}"
+                processed_name = f"{stem}{suffix}"
                 processed_path = output_folder / relative_path.parent / processed_name
                 processed_path.parent.mkdir(parents=True, exist_ok=True)
 
