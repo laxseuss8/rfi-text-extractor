@@ -8,7 +8,7 @@ Outputs include processed images preview, a side-by-side CSV of OCR results, and
 
 import streamlit as st
 from black_roi.blackening_roi import black_roi
-from black_roi.folder_importer import process_images, save_dictionary_to_csv
+from black_roi.folder_importer import process_images
 
 from ocr_process.image_processor import process_roi_x, process_roi_y
 from ocr_process.text_extractor import extract_from_image
@@ -132,15 +132,11 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     """
     # Prepare output folder and temporary CSV path
     output_folder = image_folder / f"{base_name}_output"
-    output_csv = output_folder / f"{base_name}.csv"
+
 
     # Apply black ROI filter and save stems dictionary
     original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name)
-    save_dictionary_to_csv(original_stems, base_name, output_csv)
 
-    # Remove intermediate CSV after Black ROI filter
-    if output_csv.exists():
-        os.remove(output_csv)
 
     # OCR processing on each image
     ocr_results = {}

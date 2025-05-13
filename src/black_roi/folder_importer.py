@@ -48,36 +48,3 @@ def process_images(input_folder: Path, process_fn: Callable, output_folder_name=
                 original_stems.append(stem)
 
     return original_stems
-
-
-def save_dictionary_to_csv(original_images: list[str], folder_label: str, csv_path: Path) -> None:
-    """
-    Saves matched vertical and horizontal images in a structured CSV format.
-
-    Args:
-        original_images (list[str]): List of image stems.
-        folder_label (str): Used for column headers.
-        csv_path (Path): Output CSV path.
-    """
-    v_images, h_images = [], []
-
-    for name in sorted(original_images):
-        if " V" in name:
-            v_images.append(name)
-        elif " H" in name:
-            h_images.append(name)
-
-    max_len = max(len(v_images), len(h_images))
-    v_images.extend([""] * (max_len - len(v_images)))
-    h_images.extend([""] * (max_len - len(h_images)))
-
-    rows = []
-    for v, h in zip(v_images, h_images):
-        rows.append([v] + [""] * 6 + [h])
-        rows.extend([[""] * 8] * 2)  # two blank rows
-
-    columns = pd.Index([f"{folder_label}_V"] + [""] * 6 + [f"{folder_label}_H"])
-    df = pd.DataFrame(rows, columns=columns)
-
-    df.to_csv(csv_path, index=False)
-    print(f"CSV saved to: {csv_path}")
