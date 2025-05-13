@@ -35,7 +35,7 @@ def process_images(input_folder: Path, process_fn: Callable, output_folder_name=
                 relative_path = input_path.relative_to(input_folder)
 
                 stem, suffix = relative_path.stem, relative_path.suffix
-                processed_name = f"{stem}_processed{suffix}"
+                processed_name = f"{stem}{suffix}"
                 processed_path = output_folder / relative_path.parent / processed_name
                 processed_path.parent.mkdir(parents=True, exist_ok=True)
 
