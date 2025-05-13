@@ -69,20 +69,24 @@ def zip_folder(folder_path: Path, zip_name: Path):
     return zip_name
 
 
-# New helper: rename using Ref-X values
+# Updated helper: rename using Ref-X values, matching stems in filenames
 def rename_with_refx(output_folder: Path, ocr_results: dict, base_name: str):
     """
-    Rename each file in output_folder whose stem matches a key in ocr_results,
+    Rename each file in output_folder whose stem contains a key from ocr_results,
     using the first two 'X' entries and the base_name.
     """
-    for stem, texts in ocr_results.items():
+    for original_stem, texts in ocr_results.items():
+        # get first two cleaned X entries
         ref_list = texts.get('X', [])
         ref1 = ref_list[0] if len(ref_list) > 0 else ""
         ref2 = ref_list[1] if len(ref_list) > 1 else ""
-        for img_path in output_folder.glob(f"{stem}.*"):
-            suffix = img_path.suffix
-            new_name = f"{ref1}_{ref2}_{base_name}{suffix}"
-            img_path.rename(output_folder / new_name)
+
+        # iterate all files, rename those containing the stem
+        for img_path in output_folder.iterdir():
+            if original_stem in img_path.stem:
+                suffix = img_path.suffix
+                new_name = f"{ref1}_{ref2}_{base_name}{suffix}"
+                img_path.rename(output_folder / new_name)
 
 
 def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
@@ -98,7 +102,7 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     output_folder = image_folder / f"{base_name}_output"
     intermediate_csv = output_folder / f"{base_name}.csv"
 
-    # Black ROI
+    # Black ROI: writes processed images into output_folder
     process_images(image_folder, black_roi, output_folder_name=output_folder.name)
     if intermediate_csv.exists():
         os.remove(intermediate_csv)
@@ -115,12 +119,12 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
         cleaned_text_x, cleaned_text_y = clean_text(text_x, text_y)
         ocr_results[image_path.stem] = {"X": cleaned_text_x, "Y": cleaned_text_y}
 
-    # Save CSV
+    # Ensure folder exists and save CSV
     output_folder.mkdir(exist_ok=True)
     output_csv = output_folder / f"{base_name}.csv"
     save_side_by_side_csv(ocr_results, output_csv)
 
-    # Rename files based on Ref-X values
+    # Rename based on Ref-X values
     rename_with_refx(output_folder, ocr_results, base_name)
 
     return output_folder, output_csv
