@@ -167,16 +167,26 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
+# === Streamlit UI ===
+st.set_page_config(page_title="OCR Text Extractor", page_icon="🧠", layout="centered")
+st.title("🧠 OCR Text Extraction Pipeline")
+
+uploaded_files = st.file_uploader(
+    "📁 Upload images or archives (.png, .jpg, .rar, .7z, .zip)",
+    type=["png", "jpg", "jpeg", "tif", "tiff", "rar", "7z", "zip"],
+    accept_multiple_files=True
+)
+
 if uploaded_files:
     st.success(f"Uploaded {len(uploaded_files)} file(s).")
-    if st.button("🚀 Run OCR on All Uploaded Files"):
+    if st.button("🚀 Run OCR on Uploaded Files"):
         with st.spinner("Processing..."):
             try:
                 temp_dir = Path(tempfile.mkdtemp())
                 image_folder, file_paths = save_uploaded_files(uploaded_files, temp_dir=str(temp_dir))
                 extracted_dirs = extract_archives_if_needed(file_paths, temp_dir)
 
-                # collect all images
+                # collect all images into a single list
                 all_images = [f for f in file_paths if f.suffix.lower() in [".png", ".jpg", ".jpeg", ".tif", ".tiff"]]
                 for d in extracted_dirs:
                     all_images += collect_image_files_recursive(d)
@@ -184,24 +194,19 @@ if uploaded_files:
                 if not all_images:
                     st.warning("No valid image files found.")
                 else:
-                    from collections import defaultdict
-                    folder_groups = defaultdict(list)
-                    for img in all_images:
-                        # group by parent directory name
-                        folder_groups[img.parent.name].append(img)
+                    # process all images in one batch
+                    base_name = "all_extracted"
+                    out_folder, out_csv = run_pipeline(temp_dir, all_images, base_name)
 
-                    # process each folder as its own batch
-                    for folder_name, imgs in folder_groups.items():
-                        st.markdown(f"### Results for `{folder_name}`")
-                        out_folder, out_csv = run_pipeline(temp_dir, imgs, folder_name)
+                    # create ZIP of processed images
+                    zip_path = temp_dir / f"{base_name}_output.zip"
+                    zip_folder(out_folder, zip_path)
 
-                        zip_path = temp_dir / f"{folder_name}_output.zip"
-                        zip_folder(out_folder, zip_path)
-                        
-                        with open(out_csv, "rb") as f:
-                            st.download_button(f"📥 Download `{folder_name}` CSV", f, file_name=out_csv.name)
-                        with open(zip_path, "rb") as f:
-                            st.download_button(f"🖼️ Download `{folder_name}` ZIP", f, file_name=zip_path.name)
+                    st.success("✅ Processing complete!")
+                    with open(out_csv, "rb") as f:
+                        st.download_button("📥 Download Extracted Text CSV", f, file_name=out_csv.name)
+                    with open(zip_path, "rb") as f:
+                        st.download_button("🖼️ Download Processed Images ZIP", f, file_name=zip_path.name)
 
             except Exception as e:
                 st.error(f"❌ Error: {e}")
