@@ -189,48 +189,44 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-# Main processing trigger
 if uploaded_files:
     st.success(f"Uploaded {len(uploaded_files)} file(s).")
-    if st.button("🚀 Run OCR on Uploaded Files / Archives"):
+    if st.button("🚀 Run OCR on All Uploaded Files"):
         with st.spinner("Processing..."):
             try:
-                # Create temporary working directory
-                temp_dir = tempfile.mkdtemp()
-                image_folder, file_paths = save_uploaded_files(uploaded_files, temp_dir=temp_dir)
-                # Extract archives if present
-                extracted_dirs = extract_archives_if_needed(file_paths, Path(temp_dir))
-
-                # Determine base filename for outputs
-                archive_file = next((f for f in file_paths if f.suffix.lower() in [".zip", ".rar", ".7z"]), None)
-                base_name = archive_file.stem if archive_file else image_folder.name
-
-                # Collect all image files from uploads and extractions
+                temp_dir = Path(tempfile.mkdtemp())
+                # save uploads
+                image_folder, file_paths = save_uploaded_files(uploaded_files, temp_dir=str(temp_dir))
+                # extract archives
+                extracted_dirs = extract_archives_if_needed(file_paths, temp_dir)
+                # collect all images
                 all_images = [f for f in file_paths if f.suffix.lower() in [".png", ".jpg", ".jpeg", ".tif", ".tiff"]]
-                for folder in extracted_dirs:
-                    all_images += collect_image_files_recursive(folder)
+                for d in extracted_dirs:
+                    all_images += collect_image_files_recursive(d)
 
                 if not all_images:
                     st.warning("No valid image files found.")
                 else:
-                    # Run processing pipeline
-                    output_folder, result_csv = run_pipeline(Path(temp_dir), all_images, base_name)
+                    # group files by base_name (handles multiple archives/images)
+                    groups: dict[str, list[Path]] = {}
+                    for img in all_images:
+                        # use stem up to first underscore for grouping, or full stem
+                        base = img.stem.rsplit('_', 1)[0]
+                        groups.setdefault(base, []).append(img)
 
-                    # Create ZIP of processed images
-                    zip_path = Path(temp_dir) / f"{base_name}_output.zip"
-                    zip_folder(output_folder, zip_path)
-
-                    st.success("✅ Processing complete!")
-
-                    # Show gallery and provide downloads
-                    show_image_gallery(output_folder)
-
-                    with open(result_csv, "rb") as f:
-                        st.download_button("📥 Download Extracted Text to CSV", f, file_name=result_csv.name)
-
-                    with open(zip_path, "rb") as zip_file:
-                        st.download_button("🖼️ Download Processed Images", zip_file, file_name=zip_path.name)
+                    # process each group separately
+                    for base, imgs in groups.items():
+                        st.markdown(f"### Results for `{base}`")
+                        out_folder, out_csv = run_pipeline(temp_dir, imgs, base)
+                        # zip images
+                        zip_path = temp_dir / f"{base}_output.zip"
+                        zip_folder(out_folder, zip_path)
+                        # show gallery & downloads
+                        show_image_gallery(out_folder)
+                        with open(out_csv, "rb") as f:
+                            st.download_button(f"📥 Download `{base}` OCR CSV", f, file_name=out_csv.name)
+                        with open(zip_path, "rb") as f:
+                            st.download_button(f"🖼️ Download `{base}` Images ZIP", f, file_name=zip_path.name)
 
             except Exception as e:
                 st.error(f"❌ Error: {e}")
-
