@@ -167,16 +167,6 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-# === Streamlit UI ===
-st.set_page_config(page_title="OCR Text Extractor", page_icon="🧠", layout="centered")
-st.title("🧠 OCR Text Extraction Pipeline")
-
-uploaded_files = st.file_uploader(
-    "📁 Upload images or archives (.png, .jpg, .rar, .7z, .zip)",
-    type=["png", "jpg", "jpeg", "tif", "tiff", "rar", "7z", "zip"],
-    accept_multiple_files=True
-)
-
 if uploaded_files:
     st.success(f"Uploaded {len(uploaded_files)} file(s).")
     if st.button("🚀 Run OCR on Uploaded Files"):
