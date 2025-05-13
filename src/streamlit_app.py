@@ -118,7 +118,8 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
     1. ROI blackening,
     2. OCR extraction from the output of ROI blackening,
     3. Cleaning of extracted text,
-    4. Save results to CSV outputs.
+    4. Save results to CSV outputs,
+    5. Flatten any nested directories under output_folder.
 
     Args:
         image_folder (Path): Working directory for image processing.
@@ -129,38 +130,44 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
         Path: Output folder containing processed images and files.
         Path: CSV file path with cleaned OCR results.
     """
-    # Prepare output folder and temporary CSV path
+    # 1) Prepare output folder path
     output_folder = image_folder / f"{base_name}_output"
-    intermediate_csv = output_folder / f"{base_name}.csv"
 
-    # Apply black ROI filter and save stems dictionary
-    original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name)
+    # 2) Apply black ROI filter (creates output_folder/<orig structure>)
+    original_stems = process_images(
+        image_folder,
+        black_roi,
+        output_folder_name=output_folder.name
+    )
 
-    # Remove intermediate CSV after Black ROI filter
-    if intermediate_csv.exists():
-        os.remove(intermediate_csv)
-
-    # OCR processing on each image
+    # 3) OCR processing
     ocr_results = {}
     for image_path in image_files:
-        image = cv2.imread(str(image_path))
-        if image is None:
+        img = cv2.imread(str(image_path))
+        if img is None:
             continue
-        # Extract regions of interest
-        roi_x = process_roi_x(image)
-        roi_y = process_roi_y(image)
-        # Perform OCR
+        roi_x = process_roi_x(img)
+        roi_y = process_roi_y(img)
         text_x, text_y = extract_from_image(roi_x, roi_y)
-        # Clean extracted text
-        cleaned_text_x, cleaned_text_y = clean_text(text_x, text_y)
-        ocr_results[image_path.stem] = {"X": cleaned_text_x, "Y": cleaned_text_y}
+        cleaned_x, cleaned_y = clean_text(text_x, text_y)
+        ocr_results[image_path.stem] = {"X": cleaned_x, "Y": cleaned_y}
 
-    # Ensure output directory exists and save final OCR CSV
+    # 4) Ensure output folder exists
     output_folder.mkdir(exist_ok=True)
-    output_csv_path = output_folder / f"{base_name}.csv"
-    save_side_by_side_csv(ocr_results, output_csv_path)
 
-    return output_folder, output_csv_path
+    # 5) Flatten any nested directories
+    for sub in list(output_folder.iterdir()):
+        if sub.is_dir():
+            for file in sub.rglob("*"):
+                if file.is_file():
+                    shutil.move(str(file), str(output_folder / file.name))
+            sub.rmdir()
+
+    # 6) Save the consolidated CSV
+    output_csv = output_folder / f"{base_name}.csv"
+    save_side_by_side_csv(ocr_results, output_csv)
+
+    return output_folder, output_csv
 
 
 def show_image_gallery(folder: Path):
