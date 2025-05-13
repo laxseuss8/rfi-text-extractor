@@ -135,7 +135,6 @@ def run_pipeline(image_folder: Path, image_files: list[Path], base_name: str):
 
     # Apply black ROI filter and save stems dictionary
     original_stems = process_images(image_folder, black_roi, output_folder_name=output_folder.name)
-    save_dictionary_to_csv(original_stems, base_name, intermediate_csv)
 
     # Remove intermediate CSV after Black ROI filter
     if intermediate_csv.exists():
